@@ -1,0 +1,171 @@
+datasets:
+  librispeech:
+    data_path: data/LibriSpeech
+    textgrid_path: data/LibriSpeech/textgrid
+    splits:
+      - dev-clean
+      - dev-other
+      - test-clean
+      - test-other
+  zeroth_korean:
+    # Bridge dataset while KsponSpeech (AIHub) access is pending -- same
+    # LibriSpeech-style layout (.flac + <id> <transcript> .trans.txt), so
+    # src/data/librispeech.py's manifest builder is reused as-is.
+    # https://www.openslr.org/40/ (CC BY 4.0). Only the 457-utterance test
+    # split is extracted (train_data_01 is 51.6h and not needed here).
+    data_path: data/Zeroth
+    textgrid_path: data/Zeroth/textgrid
+    splits:
+      - test_data_01
+  ksponspeech:
+    # Cross-lingual validation (extension C). TextGrid files here are expected
+    # to come from MFA's korean_mfa acoustic model + dictionary, mirroring the
+    # english_mfa setup used for librispeech. See src/data/ksponspeech.py for
+    # the assumed corpus layout -- adjust to match your actual copy.
+    data_path: data/KsponSpeech
+    textgrid_path: data/KsponSpeech/textgrid
+    splits:
+      - eval_clean
+      - eval_other
+
+  ami:
+    # Cross-domain validation: meeting speech instead of read speech. The two
+    # splits are the same utterances through two microphones (ihm = individual
+    # headset, sdm = single distant mic), which isolates the acoustic condition.
+    # No MFA here -- AMI's NXT annotations already carry word boundaries, and
+    # scripts/data/prepare_ami.py turns them into clips + TextGrids.
+    data_path: data/AMI
+    textgrid_path: data/AMI/textgrid
+    splits:
+      - ihm
+      - sdm
+
+  tedlium:
+    # Real-environment mid-point: prepared public-speaking register, live-venue
+    # acoustics, between LibriSpeech (studio read speech) and AMI (spontaneous
+    # meeting dialogue). Needs MFA (see scripts/data/prepare_tedlium.py) since
+    # .stm only carries segment-level timing, not word-level.
+    data_path: data/TEDLIUM
+    textgrid_path: data/TEDLIUM/textgrid
+    splits:
+      - dev
+      - test
+
+artifacts_path: artifacts
+exp_path: exp
+
+manifest:
+  output_path: artifacts/manifests
+  skip_missing_textgrid: true
+
+oracle:
+  audio_output_path: artifacts/generated_audio
+  min_variant_duration_sec: 0.10
+  leading_ms: [-100, -50, 0, 50, 100, 150, 200, 300, 400, 500]
+  trailing_ms: [-100, -50, 0, 50, 100, 150, 200, 300, 400, 500]
+  pause_buckets_ms:
+    - [200, 400]
+    - [400, 700]
+    - [700, null]
+  pause_cut_positions: [0.2, 0.5, 0.8]
+  pause_min_duration_ms: 200
+
+# 2D margin grid (E3). oracle.leading_ms / oracle.trailing_ms above stay as the
+# baseline 1D sweeps so the reproduction run is untouched; this is the product
+# grid that the asymmetric policy is read off. Negative margins are left on the
+# axes only -- cutting into speech from both ends at once is not a policy
+# anybody would ship, so the grid starts at 0.
+margin_grid:
+  # 50 ms step over both axes (2026-10-20 densification of the E3 grid).
+  leading_ms: [0, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500]
+  trailing_ms: [0, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500]
+
+asr:
+  # wav2vec2-base-960h is the backbone used in the baseline experiment.
+  # Other supported values (see src/asr.py:BACKBONE_REGISTRY), added for the
+  # cross-architecture (A) and cross-lingual (C) extensions:
+  #   whisper-base / whisper-small   -- attention-based encoder-decoder, English
+  #   wav2vec2-xlsr-korean           -- CTC, Korean
+  model_name: whisper-base
+  # Forces decoding language for backbones that support it (currently only
+  # whisper_hf). Leave null for wav2vec2 backbones and for Whisper
+  # language auto-detection.
+  language: en
+  device: cuda
+  device_index: 1
+  num_workers: 6
+  # Rows per model call, per GPU worker. Only backbones with a
+  # transcribe_batch() method benefit (whisper_hf, wav2vec2_hf); the original
+  # wav2vec2-base-960h path always decodes one row at a time regardless of
+  # this value, so the baseline reproduction is unaffected. Override with
+  # run_asr_decode.py --batch-size.
+  batch_size: 16
+
+silero_vad:
+  threshold: 0.5
+  min_silence_duration_ms: 100
+  speech_pad_ms: 30
+  max_speech_duration_s: 30.0
+  target_sample_rate: 16000
+
+vad_policy:
+  # The baseline Step 2 policy. Symmetric, keyed on the split group. Left
+  # exactly as in the baseline so the reproduction (E1) is unchanged.
+  policy_name: fa_informed_v1
+  clean:
+    leading_pad_ms: 400
+    trailing_pad_ms: 400
+  other:
+    leading_pad_ms: 500
+    trailing_pad_ms: 500
+
+# Named policies for E2/E4. The point of the follow-up is that leading buys
+# accuracy while trailing buys latency, so the asymmetric entries hold leading
+# at 400 and walk trailing down. sym_400 is the like-for-like symmetric control
+# against which the 350ms latency saving of asym_400_050 is claimed.
+vad_policies:
+  default:
+    leading_pad_ms: 0
+    trailing_pad_ms: 0
+  sym_400:
+    leading_pad_ms: 400
+    trailing_pad_ms: 400
+  asym_400_150:
+    leading_pad_ms: 400
+    trailing_pad_ms: 150
+  asym_400_100:
+    leading_pad_ms: 400
+    trailing_pad_ms: 100
+  asym_400_050:
+    leading_pad_ms: 400
+    trailing_pad_ms: 50
+  # Real audio in front, digital silence behind: the silence flushes the last
+  # token of a short-look-ahead streaming encoder without being waited for.
+  flush_400:
+    leading_pad_ms: 400
+    trailing_pad_ms: 0
+    trailing_silence_ms: 400
+  flush_400_050:
+    leading_pad_ms: 400
+    trailing_pad_ms: 50
+    trailing_silence_ms: 400
+  # 640 ms of silence saturates the gain at every look-ahead in the E6 sweep.
+  flush_400_s640:
+    leading_pad_ms: 400
+    trailing_pad_ms: 0
+    trailing_silence_ms: 640
+
+# E2, the control that decides whether the margin policy is anything more than
+# a less aggressive VAD. Silero already applies speech_pad_ms symmetrically, so
+# sweeping it reproduces "widen both sides" without any policy logic.
+speech_pad_sweep_ms: [30, 100, 200, 300, 400, 500]
+
+# Per-VAD construction options for src/vad.py:create_vad_runner. Detection
+# thresholds and post-processing stay shared via the silero_vad block above.
+vad:
+  webrtc:
+    aggressiveness: 2
+    frame_duration_ms: 30
+  pyannote:
+    onset: 0.5
+    device: cpu

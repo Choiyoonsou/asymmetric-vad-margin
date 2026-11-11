@@ -1,0 +1,145 @@
+# temp: SpeechBrain rerun 2026-10-20, GPU subset of axes_deep.yaml
+datasets:
+  librispeech:
+    data_path: data/LibriSpeech
+    textgrid_path: data/LibriSpeech/textgrid
+    splits:
+    - dev-clean
+    - dev-other
+    - test-clean
+    - test-other
+  zeroth_korean:
+    data_path: data/Zeroth
+    textgrid_path: data/Zeroth/textgrid
+    splits:
+    - test_data_01
+  ksponspeech:
+    data_path: data/KsponSpeech
+    textgrid_path: data/KsponSpeech/textgrid
+    splits:
+    - eval_clean
+    - eval_other
+  ami:
+    data_path: data/AMI
+    textgrid_path: data/AMI/textgrid
+    splits:
+    - ihm
+    - sdm
+  tedlium:
+    data_path: data/TEDLIUM
+    textgrid_path: data/TEDLIUM/textgrid
+    splits:
+    - dev
+    - test
+artifacts_path: artifacts
+exp_path: exp
+manifest:
+  output_path: artifacts/manifests
+  skip_missing_textgrid: true
+oracle:
+  audio_output_path: artifacts/generated_audio
+  min_variant_duration_sec: 0.1
+  leading_ms:
+  - -200
+  - -150
+  trailing_ms:
+  - -200
+  - -150
+  pause_buckets_ms:
+  - - 200
+    - 400
+  - - 400
+    - 700
+  - - 700
+    - null
+  pause_cut_positions:
+  - 0.2
+  - 0.5
+  - 0.8
+  pause_min_duration_ms: 200
+margin_grid:
+  leading_ms:
+  - 0
+  - 100
+  - 200
+  - 300
+  - 400
+  - 500
+  trailing_ms:
+  - 0
+  - 50
+  - 100
+  - 150
+  - 200
+  - 300
+  - 400
+  - 500
+asr:
+  model_name: wav2vec2-base-960h
+  language: null
+  device: cuda
+  device_index:
+  - 0
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+  num_workers: 6
+  batch_size: 16
+silero_vad:
+  threshold: 0.5
+  min_silence_duration_ms: 100
+  speech_pad_ms: 30
+  max_speech_duration_s: 30.0
+  target_sample_rate: 16000
+vad_policy:
+  policy_name: fa_informed_v1
+  clean:
+    leading_pad_ms: 400
+    trailing_pad_ms: 400
+  other:
+    leading_pad_ms: 500
+    trailing_pad_ms: 500
+vad_policies:
+  default:
+    leading_pad_ms: 0
+    trailing_pad_ms: 0
+  sym_400:
+    leading_pad_ms: 400
+    trailing_pad_ms: 400
+  asym_400_150:
+    leading_pad_ms: 400
+    trailing_pad_ms: 150
+  asym_400_100:
+    leading_pad_ms: 400
+    trailing_pad_ms: 100
+  asym_400_050:
+    leading_pad_ms: 400
+    trailing_pad_ms: 50
+  flush_400:
+    leading_pad_ms: 400
+    trailing_pad_ms: 0
+    trailing_silence_ms: 400
+  flush_400_050:
+    leading_pad_ms: 400
+    trailing_pad_ms: 50
+    trailing_silence_ms: 400
+  flush_400_s640:
+    leading_pad_ms: 400
+    trailing_pad_ms: 0
+    trailing_silence_ms: 640
+speech_pad_sweep_ms:
+- 30
+- 100
+- 200
+- 300
+- 400
+- 500
+vad:
+  webrtc:
+    aggressiveness: 2
+    frame_duration_ms: 30
+  pyannote:
+    onset: 0.5
+    device: cpu

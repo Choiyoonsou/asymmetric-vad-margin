@@ -1,0 +1,18 @@
+PyYAML
+numpy
+pandas
+matplotlib
+jiwer
+editdistance
+rapidfuzz
+textgrid
+soundfile
+torch
+torchaudio
+transformers
+huggingface_hub
+silero-vad
+webrtcvad
+pyannote.audio
+speechbrain
+# NeMo (FastConformer experiments) goes in a separate env: pip install "nemo_toolkit[asr]"
